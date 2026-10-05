@@ -1,0 +1,44 @@
+/* Sotto design tokens. Roles mirror the reference layout; values are Sotto's own palette. */
+:root {
+  /* ink + surfaces */
+  --ink: #14121c;
+  --ink-soft: #eeebfa; /* text on ink cards */
+  --white: #ffffff;
+  --wash: #f6f4ff; /* tinted section background */
+  --card: #fafafb;
+  --card-violet: #efebfd;
+  --card-gold: #ffe8b5;
+  --glass: rgba(250, 250, 252, 0.55);
+  --line: #e7e5ee;
+
+  /* accent */
+  --accent: #dcd3ff;
+  --accent-hover: #b6a8eb;
+  --gold: #f2b43c;
+  --gold-deep: #d9901a;
+
+  /* text roles */
+  --text-eyebrow: #857f96;
+  --text-eyebrow-2: #8c8898;
+  --text-muted: #706b7e;
+  --text-body-2: #443f56;
+  --text-footer: #cfcdd6;
+  --input-bg: #262238;
+
+  /* type */
+  --font: 'DM Sans', 'DM Sans Placeholder', system-ui, sans-serif;
+  --track: -0.1px;
+
+  /* layout */
+  --gutter: 100px;
+  --header-h: 65px;
+  --radius-card: 14px;
+  --radius-btn: 10px;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (max-width: 1199px) {
+  :root {
+    --gutter: 32px;
+  }
+}
