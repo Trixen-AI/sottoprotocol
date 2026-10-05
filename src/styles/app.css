@@ -563,6 +563,9 @@ a.list__row:hover .list__title {
 }
 
 .table-wrap {
+  /* positioned so absolutely placed children (screen-reader labels) are clipped here,
+     instead of widening the page */
+  position: relative;
   overflow-x: auto;
   margin: 0 -4px;
 }
@@ -1290,4 +1293,61 @@ select.input {
 .narrow {
   width: 100%;
   max-width: 720px;
+}
+
+/* fresh address table: one card per address on phones, no sideways scrolling */
+@media (max-width: 640px) {
+  .table--stack thead {
+    display: none;
+  }
+  .table--stack,
+  .table--stack tbody {
+    display: block;
+  }
+  .table--stack tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 12px;
+    padding: 14px 4px;
+    border-top: 1px solid var(--line);
+  }
+  .table--stack tbody tr:first-child {
+    border-top: 0;
+  }
+  .table--stack td {
+    display: block;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+  .table--stack .num {
+    text-align: left;
+  }
+  .table--stack td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-family: var(--font);
+    font-size: 12px;
+    color: var(--text-eyebrow-2);
+  }
+  .table--stack .table__index {
+    grid-column: 1 / -1;
+    font-size: 12px;
+    color: var(--text-eyebrow-2);
+  }
+  .table--stack .table__label,
+  .table--stack .table__addr,
+  .table--stack .table__actions {
+    grid-column: 1 / -1;
+  }
+  .table--stack .table__label .input--quiet {
+    padding: 0;
+  }
+  .table--stack .table__sub {
+    padding-left: 0;
+  }
+  .table--stack .table__actions {
+    text-align: left;
+    padding-top: 4px;
+  }
 }

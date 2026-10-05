@@ -81,7 +81,7 @@ function AddressTable() {
 
       {vault.addresses.length ? (
         <div className="table-wrap">
-          <table className="table">
+          <table className="table table--stack">
             <thead>
               <tr>
                 <th>#</th>
@@ -104,20 +104,20 @@ function AddressTable() {
                 const { total } = valueRows(h, tokens, prices.data)
                 return (
                   <tr key={a.index}>
-                    <td className="mono">{a.index}</td>
-                    <td>
+                    <td className="mono table__index">#{a.index}</td>
+                    <td className="table__label">
                       <LabelEditor a={a} />
                       <span className="table__sub">{timeAgo(a.createdAt / 1000)}</span>
                     </td>
-                    <td>
+                    <td className="table__addr">
                       <Address value={a.address} />
                     </td>
                     {tokens.map((t) => (
-                      <td key={t.symbol} className="num mono">
+                      <td key={t.symbol} className="num mono" data-label={t.symbol}>
                         {h ? fromBase(holdingOf(h, t), t.decimals, 4) : '…'}
                       </td>
                     ))}
-                    <td className="num">{h ? usd(total) : '…'}</td>
+                    <td className="num" data-label="Value">{h ? usd(total) : '…'}</td>
                     <td className="table__actions">
                       <Link className="link-btn" to={`/app/send?from=${a.index}`}>
                         Send

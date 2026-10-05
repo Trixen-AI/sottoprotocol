@@ -57,7 +57,7 @@ export function errorText(e: unknown) {
   const m = e instanceof Error ? e.message : String(e)
   if (/user rejected|rejected the request|declined/i.test(m)) return 'You cancelled the request in your wallet.'
   if (/insufficient (funds|lamports)|0x1\b/i.test(m)) return 'Not enough balance to cover the amount and network fee.'
-  if (/403|forbidden/i.test(m)) return 'The RPC endpoint refused the request. Set a different RPC in Settings.'
-  if (/429|too many requests/i.test(m)) return 'The RPC endpoint is rate limiting. Wait a moment or set your own RPC in Settings.'
+  if (/403|forbidden/i.test(m)) return 'The network endpoint refused the request. Try again in a moment.'
+  if (/429|too many requests/i.test(m)) return 'The network is busy. Wait a moment and try again.'
   return m.length > 220 ? `${m.slice(0, 220)}…` : m
 }

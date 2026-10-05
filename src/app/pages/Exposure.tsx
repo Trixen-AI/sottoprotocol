@@ -47,7 +47,7 @@ function Report({ address }: { address: string }) {
               </li>
             ) : null}
           </ul>
-          {r.knownTokensOnly ? <p className="stat__foot">This RPC only reports SOL, USDC and ZEC. A dedicated RPC (Settings) lists every token.</p> : null}
+          {r.knownTokensOnly ? <p className="stat__foot">Showing SOL, USDC and ZEC. Other tokens are not listed by the current network endpoint.</p> : null}
         </section>
         <section className="card card--violet stat">
           <div className="stat__head">

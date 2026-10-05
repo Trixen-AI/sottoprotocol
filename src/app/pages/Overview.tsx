@@ -159,7 +159,7 @@ function Connected({ address }: { address: string }) {
             </button>
           }
         >
-          {history.error ? <p className="muted">Could not load activity from the RPC. Check Settings.</p> : null}
+          {history.error ? <p className="muted">Could not load activity right now. Try refreshing in a moment.</p> : null}
           {history.data ? <ActivityList items={history.data} address={address} /> : !history.error ? <Skeleton lines={5} /> : null}
         </Panel>
 
