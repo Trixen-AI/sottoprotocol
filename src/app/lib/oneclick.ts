@@ -1,4 +1,4 @@
-// NEAR Intents 1Click API: the external route the Shield uses between Solana and Zcash.
+// NEAR Intents 1Click API: the external route the Shield uses between Ethereum and Zcash.
 // Deposits, amounts and timing on this route are public.
 const BASE = 'https://1click.chaindefuser.com/v0'
 

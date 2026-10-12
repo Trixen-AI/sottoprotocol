@@ -12,7 +12,7 @@ import { UseCases } from '@/components/sections/UseCases'
 import { apps, people } from '@/data/content'
 
 const APP_ITEMS: OrbitItem[] = [
-  { kind: 'token', label: 'SOL' },
+  { kind: 'token', label: 'ETH' },
   { kind: 'dot' },
   { kind: 'lock' },
   { kind: 'token', label: 'USDC' },

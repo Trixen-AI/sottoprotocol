@@ -6,12 +6,14 @@ import { SetupNotice } from '../components/gates'
 import { ExplorerLink, Field, Notice, QRCode, Spinner } from '../components/ui'
 import { ConnectButton } from '../components/walletBits'
 import { NETWORK_LABEL } from '../config'
+import { getHistory } from '../lib/blockscout'
+import { buildTransfer, getHoldings, holdingOf, waitForTx } from '../lib/chain'
 import { errorText, fromBase, short, toBase } from '../lib/format'
-import { decodePayRequest, solanaPayUrl } from '../lib/paylink'
-import { BASE_FEE, buildTransfer, checkSolTransfer, confirmSignature, getHoldings, getSignatures, holdingOf } from '../lib/solana'
-import { SOL, TOKENS } from '../lib/tokens'
+import { decodePayRequest, paymentUri, type PayRequest } from '../lib/paylink'
+import { TOKENS, type Token } from '../lib/tokens'
 import { useResource } from '../lib/useResource'
-import { useSolana } from '../state/solana'
+import { incomingPayments } from '../state/payLinks'
+import { useChain } from '../state/chain'
 import { useWallet } from '../state/wallet'
 
 export function PayPage() {
@@ -31,22 +33,30 @@ export function PayPage() {
   )
 }
 
-function PayForm({ request, token }: { request: NonNullable<ReturnType<typeof decodePayRequest>['request']>; token: NonNullable<ReturnType<typeof decodePayRequest>['token']> }) {
-  const { connectionFor } = useSolana()
+function PayForm({ request, token }: { request: PayRequest; token: Token }) {
+  const { clientFor } = useChain()
   const wallet = useWallet()
-  const conn = connectionFor(request.net)
+  const client = clientFor(request.net)
   const [amount, setAmount] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [paidSig, setPaidSig] = useState<string | null>(null)
   const [showQr, setShowQr] = useState(false)
-
-  // A payment carrying this request's reference means it has already been paid.
-  const existing = useResource(`${request.net}:ref:${request.ref}`, () => getSignatures(conn, request.ref, 1), { refreshMs: 10_000 })
-  const alreadyPaid = existing.data?.find((s) => !s.err)?.signature ?? null
-  const payer = wallet.address
-  const balances = useResource(payer ? `${request.net}:holdings:${payer}` : null, () => getHoldings(conn, payer!, TOKENS[request.net]), { refreshMs: 30_000 })
   const fixed = request.amount ? BigInt(request.amount) : null
+
+  // Each pay link has its own fresh address, so anything that arrived there is a payment for it.
+  const received = useResource(
+    `${request.net}:paid:${request.to}:${token.symbol}`,
+    async () => incomingPayments(await getHistory(request.to, 20), token),
+    { refreshMs: 12_000 },
+  )
+  const total = received.data?.reduce((s, p) => s + BigInt(p.amount), 0n) ?? 0n
+  const alreadyPaid = received.data?.length && (fixed === null || total >= fixed) ? received.data[0].sig : null
+
+  const payer = wallet.address
+  const balances = useResource(payer ? `${request.net}:holdings:${payer}` : null, () => getHoldings(client, payer!, TOKENS[request.net]), {
+    refreshMs: 30_000,
+  })
 
   const pay = async () => {
     setError(null)
@@ -54,20 +64,13 @@ function PayForm({ request, token }: { request: NonNullable<ReturnType<typeof de
       if (!payer) throw new Error('Connect a wallet first.')
       const raw = fixed ?? toBase(amount, token.decimals)
       if (raw <= 0n) throw new Error('Enter an amount above zero.')
-      const h = balances.data ?? (await getHoldings(conn, payer, TOKENS[request.net]))
-      const bal = holdingOf(h, token)
-      if (token.mint) {
-        if (raw > bal) throw new Error(`Not enough ${token.symbol} in your wallet.`)
-        if (holdingOf(h, SOL) < BASE_FEE + 2_039_280n) throw new Error('Your wallet needs about 0.0021 SOL for network fees.')
-      } else {
-        await checkSolTransfer(conn, payer, request.to, raw, bal)
-      }
+      const h = balances.data ?? (await getHoldings(client, payer, TOKENS[request.net]))
+      if (raw > holdingOf(h, token)) throw new Error(`Not enough ${token.symbol} in your wallet.`)
       setBusy(true)
-      const tx = await buildTransfer(conn, { from: payer, to: request.to, token, amount: raw, reference: request.ref })
-      const sig = await wallet.sendTransaction(tx, conn)
-      await confirmSignature(conn, sig)
-      setPaidSig(sig)
-      existing.refresh()
+      const hash = await wallet.sendTransaction(buildTransfer(token, request.to, raw))
+      await waitForTx(client, hash)
+      setPaidSig(hash)
+      received.refresh()
     } catch (e) {
       setError(errorText(e))
     } finally {
@@ -139,8 +142,8 @@ function PayForm({ request, token }: { request: NonNullable<ReturnType<typeof de
       </button>
       {showQr ? (
         <div className="pay__qr">
-          <QRCode value={solanaPayUrl(request, token)} size={200} />
-          <p className="muted small-print">Scan with any Solana Pay wallet.</p>
+          <QRCode value={paymentUri(request, token)} size={200} />
+          <p className="muted small-print">Scan with any Ethereum wallet that reads payment QR codes.</p>
         </div>
       ) : null}
     </div>

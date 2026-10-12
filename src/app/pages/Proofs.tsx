@@ -5,11 +5,12 @@ import { ProofResult } from '../components/ProofResult'
 import { RequireWallet } from '../components/gates'
 import { CopyButton, Field, Notice, PageHeader, Panel, Segmented, Spinner } from '../components/ui'
 import { errorText, fromBase, short } from '../lib/format'
-import { decodeProof, encodeProof, signWithKeypair, signWithWallet, type Proof, type ProofBody } from '../lib/proof'
-import { getParsedTx, summarize, type TxSummary } from '../lib/solana'
-import { tokenByMint } from '../lib/tokens'
+import type { Hex } from 'viem'
+import { summarizeTx, type TxSummary } from '../lib/chain'
+import { decodeProof, encodeProof, signWithAccount, signWithWallet, type Proof, type ProofBody } from '../lib/proof'
+import { tokenByContract } from '../lib/tokens'
 import type { NetworkId } from '../config'
-import { useSolana } from '../state/solana'
+import { useChain } from '../state/chain'
 import { useVault } from '../state/vault'
 import { useWallet } from '../state/wallet'
 
@@ -17,16 +18,16 @@ type Incoming = { asset: string; amount: bigint; decimals: number; symbol: strin
 
 function incomingOf(s: TxSummary, net: NetworkId): Incoming[] {
   const out: Incoming[] = []
-  if (s.sol > 0n) out.push({ asset: 'SOL', amount: s.sol, decimals: 9, symbol: 'SOL' })
+  if (s.eth > 0n) out.push({ asset: 'ETH', amount: s.eth, decimals: 18, symbol: 'ETH' })
   for (const t of s.tokens) {
-    if (t.delta > 0n) out.push({ asset: t.mint, amount: t.delta, decimals: t.decimals, symbol: tokenByMint(net, t.mint)?.symbol ?? short(t.mint) })
+    if (t.delta > 0n) out.push({ asset: t.contract, amount: t.delta, decimals: t.decimals, symbol: tokenByContract(net, t.contract)?.symbol ?? t.symbol ?? short(t.contract) })
   }
   return out
 }
 
 function CreateProof({ owner }: { owner: string }) {
   const [params] = useSearchParams()
-  const { connection, network } = useSolana()
+  const { client, network } = useChain()
   const { signMessage } = useWallet()
   const vault = useVault()
   const indexParam = params.get('index')
@@ -48,12 +49,13 @@ function CreateProof({ owner }: { owner: string }) {
     setLoaded(null)
     try {
       if (!receiverAddress) throw new Error('Choose the address that received the payment.')
-      if (sig.trim().length < 64) throw new Error('Paste a transaction signature.')
+      const hash = sig.trim()
+      if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new Error('Paste a transaction hash (0x followed by 64 characters).')
       setBusy('load')
-      const tx = await getParsedTx(connection, sig.trim())
-      if (!tx) throw new Error('Transaction not found on this network.')
-      if (tx.meta?.err) throw new Error('This transaction failed on-chain.')
-      const summary = summarize(tx, sig.trim(), receiverAddress)
+      const summary = await summarizeTx(client, hash as Hex, receiverAddress).catch(() => {
+        throw new Error('Transaction not found on Ethereum mainnet.')
+      })
+      if (!summary.ok) throw new Error('This transaction reverted on-chain.')
       const incoming = incomingOf(summary, network)
       if (!incoming.length) throw new Error('This address did not receive anything in that transaction.')
       if (!summary.counterparties.length) throw new Error('Could not tell where this payment came from.')
@@ -73,9 +75,9 @@ function CreateProof({ owner }: { owner: string }) {
       const inc = loaded.incoming[assetIdx]
       const body: ProofBody = {
         v: 1,
-        kind: 'sotto-payment-proof',
+        kind: 'zephyra-payment-proof',
         net: network,
-        tx: loaded.summary.signature,
+        tx: loaded.summary.hash,
         recipient: loaded.address,
         from: loaded.summary.counterparties,
         asset: inc.asset,
@@ -89,7 +91,7 @@ function CreateProof({ owner }: { owner: string }) {
         setProof(await signWithWallet(body, signMessage))
       } else {
         if (!vault.unlocked && !(await vault.unlock())) return
-        setProof(signWithKeypair(body, vault.keypair(Number(receiver))))
+        setProof(await signWithAccount(body, vault.account(Number(receiver))))
       }
     } catch (err) {
       setError(errorText(err))
@@ -114,7 +116,7 @@ function CreateProof({ owner }: { owner: string }) {
               ))}
             </select>
           </Field>
-          <Field label="Transaction signature" htmlFor="pf-sig" hint="Find it in a pay link's received list, or in any explorer.">
+          <Field label="Transaction hash" htmlFor="pf-sig" hint="Find it in a pay link's received list, or in any explorer.">
             <input id="pf-sig" className="input mono" value={sig} onChange={(e) => (setSig(e.target.value), setLoaded(null))} autoComplete="off" />
           </Field>
           <Field label="Statement (optional)" htmlFor="pf-st" hint="Added to the proof and covered by the signature.">
@@ -168,7 +170,7 @@ function CreateProof({ owner }: { owner: string }) {
             <div className="btn-row">
               <a
                 className="btn btn--line btn--sm"
-                download={`sotto-proof-${proof.body.tx.slice(0, 8)}.json`}
+                download={`zephyra-proof-${proof.body.tx.slice(0, 8)}.json`}
                 href={`data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(proof, null, 2))}`}
               >
                 Download JSON

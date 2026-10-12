@@ -56,7 +56,8 @@ export function dateTime(unixSeconds: number) {
 export function errorText(e: unknown) {
   const m = e instanceof Error ? e.message : String(e)
   if (/user rejected|rejected the request|declined/i.test(m)) return 'You cancelled the request in your wallet.'
-  if (/insufficient (funds|lamports)|0x1\b/i.test(m)) return 'Not enough balance to cover the amount and network fee.'
+  if (/insufficient funds|exceeds the balance|gas required exceeds/i.test(m)) return 'Not enough ETH to cover the amount and gas.'
+  if (/chain mismatch|does not match the target chain/i.test(m)) return 'Switch your wallet to Ethereum mainnet and try again.'
   if (/403|forbidden/i.test(m)) return 'The network endpoint refused the request. Try again in a moment.'
   if (/429|too many requests/i.test(m)) return 'The network is busy. Wait a moment and try again.'
   return m.length > 220 ? `${m.slice(0, 220)}…` : m

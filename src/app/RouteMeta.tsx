@@ -34,7 +34,7 @@ export function RouteMeta() {
 
   useEffect(() => {
     const name = TITLES.find(([re]) => re.test(pathname))?.[1] ?? 'Page not found'
-    document.title = `${name} | Sotto`
+    document.title = `${name} | Zephyra OS`
   }, [pathname])
 
   return null

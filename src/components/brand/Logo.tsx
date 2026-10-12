@@ -1,4 +1,8 @@
-import { LOGO_WIDTH, MARK_PATH, WORD_PATH } from './logoPaths'
+import { LOGO_WIDTH, MARK_PATH, MARK_STROKE, WORD_PATH } from './logoPaths'
+
+function MarkPath() {
+  return <path d={MARK_PATH} fill="none" stroke="currentColor" strokeWidth={MARK_STROKE} strokeLinecap="round" strokeLinejoin="round" />
+}
 
 export function Logo({ height = 32, className }: { height?: number; className?: string }) {
   return (
@@ -9,9 +13,9 @@ export function Logo({ height = 32, className }: { height?: number; className?: 
       width={(LOGO_WIDTH / 32) * height}
       fill="currentColor"
       role="img"
-      aria-label="Sotto"
+      aria-label="Zephyra OS"
     >
-      <path fillRule="evenodd" d={MARK_PATH} />
+      <MarkPath />
       <path d={WORD_PATH} />
     </svg>
   )
@@ -19,8 +23,8 @@ export function Logo({ height = 32, className }: { height?: number; className?: 
 
 export function Mark({ className, size = 32 }: { className?: string; size?: number }) {
   return (
-    <svg className={className} viewBox="0 0 32 32" width={size} height={size} fill="currentColor" aria-hidden="true">
-      <path fillRule="evenodd" d={MARK_PATH} />
+    <svg className={className} viewBox="0 0 32 32" width={size} height={size} aria-hidden="true">
+      <MarkPath />
     </svg>
   )
 }

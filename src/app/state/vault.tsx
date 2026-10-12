@@ -1,10 +1,11 @@
 import { createContext, use, useCallback, useMemo, useState, type ReactNode } from 'react'
-import type { Keypair } from '@solana/web3.js'
-import { getSignatures } from '../lib/solana'
+import { hexToBytes, type Address } from 'viem'
+import type { PrivateKeyAccount } from 'viem/accounts'
+import { getHoldings } from '../lib/chain'
 import { useStored, readStored, writeStored } from '../lib/storage'
-import { deriveKeypair, deriveMaster, fingerprint, vaultMessage } from '../lib/vaultCrypto'
+import { deriveAccount, deriveMaster, fingerprint, vaultMessage } from '../lib/vaultCrypto'
 import { keys } from './keys'
-import { useSolana } from './solana'
+import { useChain } from './chain'
 import { useWallet } from './wallet'
 
 export type FreshAddress = { index: number; address: string; label?: string; createdAt: number }
@@ -21,7 +22,7 @@ type VaultApi = {
   unlock: () => Promise<boolean>
   lock: () => void
   create: (label?: string) => FreshAddress
-  keypair: (index: number) => Keypair
+  account: (index: number) => PrivateKeyAccount
   rename: (index: number, label: string) => void
   recover: () => Promise<number>
   labelOf: (address: string) => string | undefined
@@ -35,13 +36,9 @@ export function useVault() {
   return v
 }
 
-function sameBytes(a: Uint8Array, b: Uint8Array) {
-  return a.length === b.length && a.every((x, i) => x === b[i])
-}
-
 export function VaultProvider({ children }: { children: ReactNode }) {
   const { address: owner, signMessage } = useWallet()
-  const { connection } = useSolana()
+  const { client, tokens } = useChain()
   const [store, setStore] = useStored(owner ? keys.fresh(owner) : null, EMPTY)
   // master key lives in memory only, tagged with the wallet it belongs to
   const [secret, setSecret] = useState<{ owner: string; master: Uint8Array } | null>(null)
@@ -62,16 +59,16 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         // First unlock: a second signature proves the wallet signs deterministically,
         // which is what makes these addresses recoverable on any device.
         const again = await signMessage(msg)
-        if (!sameBytes(sig, again)) {
+        if (sig.toLowerCase() !== again.toLowerCase()) {
           throw new Error(
-            'This wallet produces a different signature each time, so fresh addresses could not be recovered later. Use a wallet with standard Solana message signing.',
+            'This wallet produces a different signature each time (common with smart-contract wallets), so fresh addresses could not be recovered later. Use a standard Ethereum wallet such as MetaMask or Rabby.',
           )
         }
-        writeStored(fpKey, fingerprint(sig))
-      } else if (known !== fingerprint(sig)) {
+        writeStored(fpKey, fingerprint(hexToBytes(sig)))
+      } else if (known !== fingerprint(hexToBytes(sig))) {
         throw new Error('This signature does not match the one this vault was created with. Unlock with the same wallet.')
       }
-      setSecret({ owner, master: deriveMaster(sig, owner) })
+      setSecret({ owner, master: deriveMaster(hexToBytes(sig), owner) })
       return true
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -83,10 +80,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   const lock = useCallback(() => setSecret(null), [])
 
-  const keypair = useCallback(
+  const account = useCallback(
     (index: number) => {
       if (!master) throw new Error('Unlock your vault first.')
-      return deriveKeypair(master, index)
+      return deriveAccount(master, index)
     },
     [master],
   )
@@ -98,7 +95,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       const index = current.next
       const record: FreshAddress = {
         index,
-        address: deriveKeypair(master, index).publicKey.toBase58(),
+        address: deriveAccount(master, index).address,
         label: label?.trim() || undefined,
         createdAt: Date.now(),
       }
@@ -114,16 +111,20 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     [setStore],
   )
 
+  // An address counts as used if it ever sent a transaction or holds anything.
   const recover = useCallback(async () => {
     if (!master || !owner) throw new Error('Unlock your vault first.')
     const found: FreshAddress[] = []
     let gap = 0
     for (let index = 0; gap < GAP_LIMIT; index++) {
-      const address = deriveKeypair(master, index).publicKey.toBase58()
-      const sigs = await getSignatures(connection, address, 1)
-      if (sigs.length) {
+      const address = deriveAccount(master, index).address
+      const [nonce, holdings] = await Promise.all([
+        client.getTransactionCount({ address: address as Address }),
+        getHoldings(client, address, tokens),
+      ])
+      if (nonce > 0 || holdings.some((h) => h.raw > 0n)) {
         gap = 0
-        found.push({ index, address, createdAt: (sigs[0].blockTime ?? Date.now() / 1000) * 1000 })
+        found.push({ index, address, createdAt: Date.now() })
       } else {
         gap++
       }
@@ -138,9 +139,12 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       return { next, items }
     })
     return added
-  }, [master, owner, connection, setStore])
+  }, [master, owner, client, tokens, setStore])
 
-  const labelOf = useCallback((address: string) => store.items.find((a) => a.address === address)?.label, [store.items])
+  const labelOf = useCallback(
+    (address: string) => store.items.find((a) => a.address.toLowerCase() === address.toLowerCase())?.label,
+    [store.items],
+  )
 
   const api = useMemo<VaultApi>(
     () => ({
@@ -152,12 +156,12 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       unlock,
       lock,
       create,
-      keypair,
+      account,
       rename,
       recover,
       labelOf,
     }),
-    [owner, master, busy, error, store.items, unlock, lock, create, keypair, rename, recover, labelOf],
+    [owner, master, busy, error, store.items, unlock, lock, create, account, rename, recover, labelOf],
   )
   return <VaultContext value={api}>{children}</VaultContext>
 }

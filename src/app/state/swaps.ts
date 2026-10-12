@@ -6,7 +6,7 @@ import { useWallet } from './wallet'
 
 export type SwapRecord = {
   id: string
-  direction: 'toZcash' | 'toSolana'
+  direction: 'toZcash' | 'toEthereum'
   createdAt: number
   depositAddress: string
   depositMemo?: string
@@ -16,7 +16,7 @@ export type SwapRecord = {
   recipient: string
   refundTo: string
   deadline: string
-  /** Solana deposit transaction, for Solana to Zcash */
+  /** Ethereum deposit transaction, for Ethereum to Zcash */
   txSig?: string
   status?: SwapStatus
   outHashes?: string[]

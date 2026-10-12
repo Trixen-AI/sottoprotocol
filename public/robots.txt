@@ -4,4 +4,4 @@ Disallow: /app
 Disallow: /pay/
 Disallow: /proof/
 
-Sitemap: https://sottoprotocol.cash/sitemap.xml
+Sitemap: https://zephyra.world/sitemap.xml

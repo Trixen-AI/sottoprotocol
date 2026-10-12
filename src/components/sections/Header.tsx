@@ -25,7 +25,7 @@ export function Header() {
     <>
       <header className="header">
         <div className="header__inner">
-          <SiteLink href="#top" className="header__logo" aria-label="Sotto home">
+          <SiteLink href="#top" className="header__logo" aria-label="Zephyra OS home">
             <Logo />
           </SiteLink>
 

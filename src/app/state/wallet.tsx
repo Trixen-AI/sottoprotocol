@@ -1,20 +1,23 @@
 import { createContext, use, useCallback, useMemo, type ReactNode } from 'react'
-import type { Connection, Transaction } from '@solana/web3.js'
-import { useAppKit, useAppKitAccount, useAppKitProvider, useDisconnect, useWalletInfo } from '@reown/appkit/react'
-import type { Provider } from '@reown/appkit-adapter-solana/react'
-import { REOWN_PROJECT_ID, type NetworkId } from '../config'
+import type { Address, Hex } from 'viem'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { WagmiProvider, useAccount, useSendTransaction, useSignMessage, useSwitchChain } from 'wagmi'
+import { useAppKit, useAppKitAccount, useDisconnect, useWalletInfo } from '@reown/appkit/react'
+import { queryClient, wagmiAdapter } from '../appkit'
+import { CHAIN_ID, type NetworkId } from '../config'
+import type { TxRequest } from '../lib/chain'
 
 /** The only thing the rest of the dashboard knows about the wallet. */
 export type WalletApi = {
   configured: boolean
-  address: string | null
+  address: Address | null
   walletName?: string
   network: NetworkId
   connect: () => void
   manage: () => void
   disconnect: () => Promise<void>
-  signMessage: (message: Uint8Array) => Promise<Uint8Array>
-  sendTransaction: (tx: Transaction, connection: Connection) => Promise<string>
+  signMessage: (message: string) => Promise<Hex>
+  sendTransaction: (req: TxRequest) => Promise<Hex>
 }
 
 const WalletContext = createContext<WalletApi | null>(null)
@@ -27,25 +30,23 @@ export function useWallet() {
 
 function AppKitWallet({ children }: { children: ReactNode }) {
   const { open } = useAppKit()
-  const { address, isConnected } = useAppKitAccount({ namespace: 'solana' })
-  const { walletProvider } = useAppKitProvider<Provider>('solana')
+  const { address, isConnected } = useAppKitAccount({ namespace: 'eip155' })
   const { disconnect } = useDisconnect()
   const { walletInfo } = useWalletInfo()
-  const connected = isConnected && address ? address : null
+  const { chainId } = useAccount()
+  const { switchChainAsync } = useSwitchChain()
+  const { signMessageAsync } = useSignMessage()
+  const { sendTransactionAsync } = useSendTransaction()
+  const connected = isConnected && address ? (address as Address) : null
 
-  const signMessage = useCallback(
-    async (m: Uint8Array) => {
-      if (!walletProvider) throw new Error('Connect a wallet first.')
-      return walletProvider.signMessage(m)
-    },
-    [walletProvider],
-  )
+  const signMessage = useCallback((message: string) => signMessageAsync({ message }), [signMessageAsync])
+
   const sendTransaction = useCallback(
-    async (tx: Transaction, connection: Connection) => {
-      if (!walletProvider) throw new Error('Connect a wallet first.')
-      return walletProvider.sendTransaction(tx, connection)
+    async (req: TxRequest) => {
+      if (chainId !== CHAIN_ID) await switchChainAsync({ chainId: CHAIN_ID })
+      return sendTransactionAsync({ to: req.to, value: req.value, data: req.data, chainId: CHAIN_ID })
     },
-    [walletProvider],
+    [chainId, switchChainAsync, sendTransactionAsync],
   )
 
   const api = useMemo<WalletApi>(
@@ -54,9 +55,9 @@ function AppKitWallet({ children }: { children: ReactNode }) {
       address: connected,
       walletName: walletInfo?.name,
       network: 'mainnet',
-      connect: () => void open({ view: 'Connect', namespace: 'solana' }),
+      connect: () => void open({ view: 'Connect', namespace: 'eip155' }),
       manage: () => void open({ view: 'Account' }),
-      disconnect: () => disconnect({ namespace: 'solana' }),
+      disconnect: () => disconnect({ namespace: 'eip155' }),
       signMessage,
       sendTransaction,
     }),
@@ -85,5 +86,12 @@ function UnconfiguredWallet({ children }: { children: ReactNode }) {
 }
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  return REOWN_PROJECT_ID ? <AppKitWallet>{children}</AppKitWallet> : <UnconfiguredWallet>{children}</UnconfiguredWallet>
+  if (!wagmiAdapter) return <UnconfiguredWallet>{children}</UnconfiguredWallet>
+  return (
+    <WagmiProvider config={wagmiAdapter.wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <AppKitWallet>{children}</AppKitWallet>
+      </QueryClientProvider>
+    </WagmiProvider>
+  )
 }

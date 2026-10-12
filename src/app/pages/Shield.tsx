@@ -7,13 +7,13 @@ import { TokenSelect } from '../components/walletBits'
 import { errorText, fromBase, short, timeAgo, toBase } from '../lib/format'
 import { FINAL_STATUSES, requestQuote, statusLabel, submitDeposit, type Quote } from '../lib/oneclick'
 import { useHoldings } from '../lib/queries'
-import { BASE_FEE, buildTransfer, checkSolTransfer, confirmSignature, holdingOf, sendWithKeypair } from '../lib/solana'
+import { buildTransfer, gasCost, holdingOf, sendFromAccount, waitForTx } from '../lib/chain'
 import { useStored } from '../lib/storage'
-import { SOL, ZEC_DECIMALS, ZEC_NATIVE_ASSET, tokenBySymbol } from '../lib/tokens'
+import { ETH, ZEC_DECIMALS, ZEC_NATIVE_ASSET, tokenBySymbol } from '../lib/tokens'
 import { invalidate } from '../lib/useResource'
 import { stamp, useNow } from '../lib/useNow'
 import { keys } from '../state/keys'
-import { useSolana } from '../state/solana'
+import { useChain } from '../state/chain'
 import { useSwaps, type SwapRecord } from '../state/swaps'
 import { useVault } from '../state/vault'
 import { useWallet } from '../state/wallet'
@@ -55,7 +55,7 @@ function QuoteSummary({ q, outSymbol, inSymbol }: { q: Quote; outSymbol: string;
 
 function ToZcash({ owner }: { owner: string }) {
   const [params] = useSearchParams()
-  const { connection, network, tokens } = useSolana()
+  const { client, rpcUrl, network, tokens } = useChain()
   const { sendTransaction } = useWallet()
   const vault = useVault()
   const [, setSwaps] = useSwaps()
@@ -63,7 +63,7 @@ function ToZcash({ owner }: { owner: string }) {
   const fromParam = params.get('from')
   const [source, setSource] = useState<'main' | 'fresh'>(fromParam !== null ? 'fresh' : 'main')
   const [freshIndex, setFreshIndex] = useState(fromParam !== null ? Number(fromParam) : (vault.addresses[0]?.index ?? 0))
-  const [symbol, setSymbol] = useState('SOL')
+  const [symbol, setSymbol] = useState('ETH')
   const [amount, setAmount] = useState('')
   const [quote, setQuote] = useState<Quote | null>(null)
   const [busy, setBusy] = useState<'quote' | 'send' | null>(null)
@@ -71,12 +71,12 @@ function ToZcash({ owner }: { owner: string }) {
   const [done, setDone] = useState<string | null>(null)
 
   const routeTokens = tokens.filter((t) => t.oneClickAsset)
-  const token = tokenBySymbol(network, symbol) ?? SOL
+  const token = tokenBySymbol(network, symbol) ?? ETH
   const fresh = vault.addresses.find((a) => a.index === freshIndex)
   const fromAddress = source === 'main' ? owner : (fresh?.address ?? null)
   const holdings = useHoldings(fromAddress)
   const balance = holdingOf(holdings.data, token)
-  const solBalance = holdingOf(holdings.data, SOL)
+  const ethBalance = holdingOf(holdings.data, ETH)
 
   const inputs = () => {
     if (!fromAddress) throw new Error('Choose a fresh address to send from.')
@@ -116,13 +116,7 @@ function ToZcash({ owner }: { owner: string }) {
     try {
       const { raw, from } = inputs()
       if (!holdings.data) throw new Error('Balances are still loading.')
-      if (token.mint) {
-        if (raw > balance) throw new Error(`Not enough ${token.symbol}.`)
-        if (solBalance < BASE_FEE + 2_039_280n) throw new Error('The sending address needs about 0.0021 SOL for network fees.')
-      } else {
-        // the route's deposit address may be new, so the same rent rules apply
-        await checkSolTransfer(connection, from, from, raw, balance)
-      }
+      if (raw > balance) throw new Error(`Not enough ${token.symbol}.`)
       if (source === 'fresh' && !vault.unlocked) throw new Error('Unlock your vault first.')
       setBusy('send')
       const deadline = inMinutes(30)
@@ -136,13 +130,19 @@ function ToZcash({ owner }: { owner: string }) {
         deadline,
       })
       if (!q.depositAddress) throw new Error('The route did not return a deposit address. Try again.')
-      const tx = await buildTransfer(connection, { from, to: q.depositAddress, token, amount: raw })
+      const req = buildTransfer(token, q.depositAddress, raw)
       let sig: string
       if (source === 'main') {
-        sig = await sendTransaction(tx, connection)
-        await confirmSignature(connection, sig)
+        const hash = await sendTransaction(req)
+        await waitForTx(client, hash)
+        sig = hash
       } else {
-        sig = await sendWithKeypair(connection, tx, vault.keypair(freshIndex))
+        // a fresh address pays its own gas in ETH
+        const gas = await gasCost(client, from, req)
+        if (ethBalance < gas + (token.contract ? 0n : raw)) {
+          throw new Error(`This fresh address needs about ${fromBase(gas, 18, 6)} ETH for gas on top of the amount.`)
+        }
+        sig = await sendFromAccount(rpcUrl, client, vault.account(freshIndex), req)
       }
       void submitDeposit(sig, q.depositAddress)
       const record: SwapRecord = {
@@ -174,7 +174,7 @@ function ToZcash({ owner }: { owner: string }) {
   const needsUnlock = source === 'fresh' && !vault.unlocked
   return (
     <div className={needsUnlock ? 'cols cols--form' : 'narrow'}>
-      <Panel title="Solana to shielded Zcash">
+      <Panel title="Ethereum to shielded Zcash">
         <form className="form" onSubmit={shield}>
           <Field label="From">
             <Segmented<'main' | 'fresh'>
@@ -240,7 +240,7 @@ function ToZcash({ owner }: { owner: string }) {
   )
 }
 
-function ToSolana({ owner }: { owner: string }) {
+function ToEthereum({ owner }: { owner: string }) {
   const vault = useVault()
   const [swaps, setSwaps] = useSwaps()
   const [zAddr, setZAddr] = useStored(keys.zcashAddress(owner), '')
@@ -277,7 +277,7 @@ function ToSolana({ owner }: { owner: string }) {
       const r = await requestQuote({
         dry: true,
         originAsset: ZEC_NATIVE_ASSET,
-        destinationAsset: SOL.oneClickAsset!,
+        destinationAsset: ETH.oneClickAsset!,
         amount: raw.toString(),
         refundTo: zAddr.trim(),
         recipient: recipientNow() ?? owner,
@@ -306,7 +306,7 @@ function ToSolana({ owner }: { owner: string }) {
       const { quote: q } = await requestQuote({
         dry: false,
         originAsset: ZEC_NATIVE_ASSET,
-        destinationAsset: SOL.oneClickAsset!,
+        destinationAsset: ETH.oneClickAsset!,
         amount: raw.toString(),
         refundTo: zAddr.trim(),
         recipient: recipient!,
@@ -316,7 +316,7 @@ function ToSolana({ owner }: { owner: string }) {
       setSwaps((prev) => [
         {
           id: crypto.randomUUID(),
-          direction: 'toSolana',
+          direction: 'toEthereum',
           createdAt: stamp(),
           depositAddress: q.depositAddress!,
           depositMemo: q.depositMemo,
@@ -340,16 +340,16 @@ function ToSolana({ owner }: { owner: string }) {
   }
 
   const now = useNow()
-  const waiting = swaps.filter((s) => s.direction === 'toSolana' && s.status === 'PENDING_DEPOSIT' && new Date(s.deadline).getTime() > now)
+  const waiting = swaps.filter((s) => s.direction === 'toEthereum' && s.status === 'PENDING_DEPOSIT' && new Date(s.deadline).getTime() > now)
 
   return (
     <div className={waiting.length ? 'cols cols--form' : 'narrow'}>
-      <Panel title="Shielded Zcash back to Solana">
+      <Panel title="Shielded Zcash back to Ethereum">
         <form className="form" onSubmit={create}>
           <Field label="Amount of ZEC" htmlFor="ts-amount">
             <input id="ts-amount" className="input mono" inputMode="decimal" placeholder="0.00" value={amount} onChange={(e) => (setAmount(e.target.value), setQuote(null))} />
           </Field>
-          <Field label="Deliver SOL to">
+          <Field label="Deliver ETH to">
             <Segmented<'new' | 'main' | 'fresh'>
               label="Deliver to"
               value={dest}
@@ -375,7 +375,7 @@ function ToSolana({ owner }: { owner: string }) {
           <Field label="Zcash refund address" htmlFor="ts-z" hint="Where the route sends your ZEC back if the transfer can't complete.">
             <input id="ts-z" className="input mono" placeholder="u1… or t1…" value={zAddr} onChange={(e) => setZAddr(e.target.value)} autoComplete="off" />
           </Field>
-          {quote ? <QuoteSummary q={quote} inSymbol="ZEC" outSymbol="SOL" /> : null}
+          {quote ? <QuoteSummary q={quote} inSymbol="ZEC" outSymbol="ETH" /> : null}
           {error ? <Notice tone="bad" icon="close">{error}</Notice> : null}
           <div className="btn-row">
             <button type="button" className="btn btn--line" onClick={preview} disabled={busy !== null}>
@@ -458,10 +458,10 @@ function History() {
             <li key={s.id} className="list__row list__row--wrap">
               <span>
                 <span className="list__title">
-                  {s.amountIn} {s.assetIn} → {s.amountOut} {s.direction === 'toZcash' ? 'ZEC' : 'SOL'}
+                  {s.amountIn} {s.assetIn} → {s.amountOut} {s.direction === 'toZcash' ? 'ZEC' : 'ETH'}
                 </span>
                 <span className="list__sub">
-                  {s.direction === 'toZcash' ? 'Solana to Zcash' : 'Zcash to Solana'} · to <span className="mono">{short(s.recipient, 6)}</span> ·{' '}
+                  {s.direction === 'toZcash' ? 'Ethereum to Zcash' : 'Zcash to Ethereum'} · to <span className="mono">{short(s.recipient, 6)}</span> ·{' '}
                   {timeAgo(s.createdAt / 1000)}
                 </span>
               </span>
@@ -486,24 +486,24 @@ function History() {
 
 export function Shield() {
   const { address } = useWallet()
-  const [dir, setDir] = useState<'toZcash' | 'toSolana'>('toZcash')
+  const [dir, setDir] = useState<'toZcash' | 'toEthereum'>('toZcash')
   return (
     <div className="page">
-      <PageHeader title="The Shield" text="Move private funds into Zcash's shielded pool, and bring them back as SOL.">
-        <Segmented<'toZcash' | 'toSolana'>
+      <PageHeader title="The Shield" text="Move private funds into Zcash's shielded pool, and bring them back as ETH.">
+        <Segmented<'toZcash' | 'toEthereum'>
           label="Direction"
           value={dir}
           onChange={setDir}
           options={[
-            { value: 'toZcash', label: 'Solana → Zcash' },
-            { value: 'toSolana', label: 'Zcash → Solana' },
+            { value: 'toZcash', label: 'Ethereum → Zcash' },
+            { value: 'toEthereum', label: 'Zcash → Ethereum' },
           ]}
         />
       </PageHeader>
         <RequireWallet>
           {address ? (
             <>
-              {dir === 'toZcash' ? <ToZcash owner={address} /> : <ToSolana owner={address} />}
+              {dir === 'toZcash' ? <ToZcash owner={address} /> : <ToEthereum owner={address} />}
               <History />
             </>
           ) : null}

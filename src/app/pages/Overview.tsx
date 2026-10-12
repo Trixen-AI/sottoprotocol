@@ -8,11 +8,11 @@ import { fromBase, timeAgo, usd } from '../lib/format'
 import { statusLabel, FINAL_STATUSES } from '../lib/oneclick'
 import { usePrices } from '../lib/prices'
 import { useHistory, useHoldings, useManyHoldings } from '../lib/queries'
-import { isAddress } from '../lib/solana'
+import { isAddress } from '../lib/chain'
 import { tokenBySymbol } from '../lib/tokens'
 import { sumHoldings, valueRows } from '../lib/value'
 import { linkStatus, receivedTotal, usePayLinks } from '../state/payLinks'
-import { useSolana } from '../state/solana'
+import { useChain } from '../state/chain'
 import { useSwaps } from '../state/swaps'
 import { useVault } from '../state/vault'
 import { useWallet } from '../state/wallet'
@@ -23,7 +23,7 @@ function ScanAnyAddress() {
   const valid = isAddress(value)
   return (
     <Panel title="See what any wallet reveals">
-      <p className="muted">Paste a Solana address to see what anyone with an explorer can read about it. No wallet needed.</p>
+      <p className="muted">Paste an Ethereum address to see what anyone with an explorer can read about it. No wallet needed.</p>
       <form
         className="inline-form"
         onSubmit={(e) => {
@@ -31,7 +31,7 @@ function ScanAnyAddress() {
           if (valid) navigate(`/app/exposure?address=${value.trim()}`)
         }}
       >
-        <input className="input mono" placeholder="Solana address" value={value} onChange={(e) => setValue(e.target.value)} aria-label="Solana address" />
+        <input className="input mono" placeholder="0x… Ethereum address" value={value} onChange={(e) => setValue(e.target.value)} aria-label="Ethereum address" />
         <button type="submit" className="btn btn--dark" disabled={!valid}>
           Scan
         </button>
@@ -41,7 +41,7 @@ function ScanAnyAddress() {
 }
 
 function Connected({ address }: { address: string }) {
-  const { tokens, network } = useSolana()
+  const { tokens, network } = useChain()
   const { addresses, unlocked } = useVault()
   const prices = usePrices()
   const main = useHoldings(address)
@@ -196,7 +196,7 @@ function Connected({ address }: { address: string }) {
                   <li key={s.id} className="list__row">
                     <span>
                       <span className="list__title">
-                        {s.amountIn} {s.assetIn} → {s.direction === 'toZcash' ? `${s.amountOut} ZEC` : `${s.amountOut} SOL`}
+                        {s.amountIn} {s.assetIn} → {s.direction === 'toZcash' ? `${s.amountOut} ZEC` : `${s.amountOut} ETH`}
                       </span>
                       <span className="list__sub">{timeAgo(s.createdAt / 1000)}</span>
                     </span>
@@ -212,15 +212,19 @@ function Connected({ address }: { address: string }) {
           {prices.data ? (
             <Panel title="Prices">
               <ul className="stat__rows stat__rows--plain">
-                {(['SOL', 'USDC', 'ZEC'] as const).map((sym) => {
-                  const t = tokenBySymbol('mainnet', sym)!
-                  return (
-                    <li key={sym}>
-                      <span>{sym}</span>
-                      <Amount raw={10n ** BigInt(t.decimals)} token={t} prices={prices.data} />
-                    </li>
-                  )
-                })}
+                {tokens.map((t) => (
+                  <li key={t.symbol}>
+                    <span>{t.symbol}</span>
+                    <Amount raw={10n ** BigInt(t.decimals)} token={t} prices={prices.data} />
+                  </li>
+                ))}
+                <li>
+                  <span>ZEC</span>
+                  <span className="amount">
+                    <span className="amount__value">1 ZEC</span>
+                    <span className="amount__usd">{usd(prices.data.zcash)}</span>
+                  </span>
+                </li>
               </ul>
             </Panel>
           ) : null}

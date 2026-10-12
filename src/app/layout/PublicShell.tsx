@@ -7,7 +7,7 @@ export function PublicShell({ title, text, right, children }: { title: string; t
   return (
     <div className="public">
       <header className="public__bar">
-        <Link to="/" aria-label="Sotto website">
+        <Link to="/" aria-label="Zephyra OS website">
           <Logo height={28} />
         </Link>
         {right}
@@ -19,7 +19,7 @@ export function PublicShell({ title, text, right, children }: { title: string; t
           {children}
         </div>
         <p className="public__foot">
-          Sotto never holds funds or keys. Payments go straight from your wallet to the recipient on Solana.
+          Zephyra OS never holds funds or keys. Payments go straight from your wallet to the recipient on Ethereum.
         </p>
       </main>
     </div>

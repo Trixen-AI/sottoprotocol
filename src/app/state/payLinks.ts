@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react'
-import { getParsedTx, getSignatures, summarize } from '../lib/solana'
+import { getHistory } from '../lib/blockscout'
 import { useStored } from '../lib/storage'
-import { tokenBySymbol } from '../lib/tokens'
+import { assetKey, tokenBySymbol } from '../lib/tokens'
 import type { NetworkId } from '../config'
+import type { TxSummary } from '../lib/chain'
+import type { Token } from '../lib/tokens'
 import { keys } from './keys'
-import { useSolana } from './solana'
+import { useChain } from './chain'
 import { useWallet } from './wallet'
 
 export type Payment = { sig: string; amount: string; from: string[]; blockTime: number | null }
@@ -17,13 +19,12 @@ export type PayLink = {
   address: string
   token: string
   amount?: string
-  ref: string
   note?: string
   /** private label, only on this device */
   label?: string
   createdAt: number
   payments: Payment[]
-  /** signatures already inspected */
+  /** transactions already inspected */
   seen: string[]
   archived?: boolean
 }
@@ -32,7 +33,7 @@ const EMPTY: PayLink[] = []
 
 export function usePayLinks() {
   const { address } = useWallet()
-  const { network } = useSolana()
+  const { network } = useChain()
   return useStored(address ? keys.payLinks(address, network) : null, EMPTY)
 }
 
@@ -48,11 +49,21 @@ export function linkStatus(l: PayLink): LinkStatus {
   return receivedTotal(l) >= BigInt(l.amount) ? 'paid' : 'partial'
 }
 
+/** Confirmed incoming amounts of one token in a list of transaction summaries. */
+export function incomingPayments(history: TxSummary[], token: Token): Payment[] {
+  const key = assetKey(token.contract)
+  return history.flatMap((t) => {
+    if (!t.ok || t.blockTime === null) return []
+    const delta = token.contract ? (t.tokens.find((d) => d.contract === key)?.delta ?? 0n) : t.eth
+    return delta > 0n ? [{ sig: t.hash, amount: delta.toString(), from: t.counterparties, blockTime: t.blockTime }] : []
+  })
+}
+
 const POLL_MS = 12_000
 
 /** Watches the fresh address behind each open pay link and records incoming payments. */
 export function usePayLinkWatcher(links: PayLink[], setLinks: (u: (prev: PayLink[]) => PayLink[]) => void) {
-  const { connection, network } = useSolana()
+  const { network } = useChain()
   const latest = useRef(links)
   useEffect(() => {
     latest.current = links
@@ -73,31 +84,22 @@ export function usePayLinkWatcher(links: PayLink[], setLinks: (u: (prev: PayLink
         const token = tokenBySymbol(network, link.token)
         if (!token) continue
         try {
-          const sigs = await getSignatures(connection, link.address, 10)
-          const fresh = sigs.filter((s) => !s.err && !link.seen.includes(s.signature))
+          const history = await getHistory(link.address, 20)
+          const fresh = incomingPayments(history, token).filter((p) => !link.seen.includes(p.sig))
           if (!fresh.length) continue
-          const payments: Payment[] = []
-          for (const s of fresh) {
-            const tx = await getParsedTx(connection, s.signature)
-            if (!tx) continue
-            const sum = summarize(tx, s.signature, link.address)
-            const delta = token.mint ? (sum.tokens.find((t) => t.mint === token.mint)?.delta ?? 0n) : sum.sol
-            if (delta > 0n) payments.push({ sig: s.signature, amount: delta.toString(), from: sum.counterparties, blockTime: sum.blockTime })
-          }
-          const seenNow = fresh.map((s) => s.signature)
           setLinks((prev) =>
             prev.map((l) =>
               l.id === link.id
                 ? {
                     ...l,
-                    payments: [...l.payments, ...payments.filter((p) => !l.payments.some((q) => q.sig === p.sig))],
-                    seen: [...seenNow, ...l.seen].slice(0, 60),
+                    payments: [...l.payments, ...fresh.filter((p) => !l.payments.some((q) => q.sig === p.sig))],
+                    seen: [...fresh.map((p) => p.sig), ...l.seen].slice(0, 60),
                   }
                 : l,
             ),
           )
         } catch {
-          // RPC hiccup: try again on the next tick
+          // indexer hiccup: try again on the next tick
         }
       }
     }
@@ -108,5 +110,5 @@ export function usePayLinkWatcher(links: PayLink[], setLinks: (u: (prev: PayLink
       stopped = true
       window.clearInterval(timer)
     }
-  }, [watchKey, connection, network, setLinks])
+  }, [watchKey, network, setLinks])
 }

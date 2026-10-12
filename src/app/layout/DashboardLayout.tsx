@@ -67,7 +67,7 @@ export function DashboardLayout() {
       {address ? <Watchers /> : null}
       <aside className={`side ${drawerOpen ? 'is-open' : ''}`} aria-label="Dashboard">
         <div className="side__top">
-          <Link to="/" className="side__logo" aria-label="Sotto website">
+          <Link to="/" className="side__logo" aria-label="Zephyra OS website">
             <Logo height={28} />
           </Link>
           <button type="button" className="icon-btn side__close" onClick={() => setDrawerFor(null)} aria-label="Close menu">
@@ -106,7 +106,7 @@ export function DashboardLayout() {
           <button type="button" className="icon-btn topbar__menu" onClick={() => setDrawerFor(pathname)} aria-label="Open menu">
             <AppIcon name="menu" />
           </button>
-          <Link to="/" className="topbar__logo" aria-label="Sotto website">
+          <Link to="/" className="topbar__logo" aria-label="Zephyra OS website">
             <Logo height={24} />
           </Link>
           <div className="topbar__right">

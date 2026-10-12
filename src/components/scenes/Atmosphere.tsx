@@ -15,7 +15,7 @@ type Props = {
   overlay?: (f: Frame) => void
 }
 
-// Soft drifting colour fields with a scatter of frosted tiles: Sotto's shared scene backdrop.
+// Soft drifting colour fields with a scatter of frosted tiles: Zephyra OS's shared scene backdrop.
 export function Atmosphere({ seed, glows, tiles = 12, band = [0, 1], overlay }: Props) {
   const field = useMemo(() => {
     const rnd = seeded(seed)

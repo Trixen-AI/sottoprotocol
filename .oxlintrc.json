@@ -13,7 +13,7 @@
         "allowConstantExport": true,
         "allowExportNames": [
           "useWallet",
-          "useSolana",
+          "useChain",
           "useVault",
           "preloadApp"
         ]

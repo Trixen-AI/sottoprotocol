@@ -1,7 +1,6 @@
 import { fromBase, short, timeAgo } from '../lib/format'
-import type { TxSummary } from '../lib/solana'
-import { SOL, tokenByMint, type Token } from '../lib/tokens'
-import { useSolana } from '../state/solana'
+import type { TxSummary } from '../lib/chain'
+import type { Token } from '../lib/tokens'
 import { useVault } from '../state/vault'
 import { useWallet } from '../state/wallet'
 import { AppIcon } from './AppIcon'
@@ -40,32 +39,31 @@ export function TokenSelect({ value, onChange, tokens, id }: { value: string; on
 
 /** One line per transaction: direction, amount, counterparty, time. */
 export function ActivityList({ items, empty = 'No transactions yet.' }: { items: TxSummary[] | undefined; address?: string; empty?: string }) {
-  const { network } = useSolana()
   const { labelOf } = useVault()
   if (!items) return null
   if (!items.length) return <p className="muted">{empty}</p>
   return (
     <ul className="activity">
       {items.map((t) => {
-        const tok = t.tokens[0]
-        const token = tok ? tokenByMint(network, tok.mint) : SOL
-        const raw = tok ? tok.delta : t.sol
-        const decimals = tok ? tok.decimals : 9
+        const tok = t.eth === 0n ? t.tokens[0] : undefined
+        const symbol = tok ? (tok.symbol ?? short(tok.contract, 3)) : 'ETH'
+        const raw = tok ? tok.delta : t.eth
+        const decimals = tok ? tok.decimals : 18
         const incoming = raw > 0n
         const other = t.counterparties[0]
         const label = other ? labelOf(other) : undefined
         return (
-          <li key={t.signature} className="activity__row">
+          <li key={t.hash} className="activity__row">
             <span className={`activity__dir ${incoming ? 'is-in' : raw < 0n ? 'is-out' : ''}`}>
               <AppIcon name={incoming ? 'arrowIn' : raw < 0n ? 'arrowOut' : 'swap'} />
             </span>
             <span className="activity__main">
               <span className="activity__what">
-                {!t.ok ? 'Failed transaction' : raw === 0n ? 'Program interaction' : incoming ? 'Received' : 'Sent'}
+                {!t.ok ? 'Failed transaction' : raw === 0n ? 'Contract call' : incoming ? 'Received' : 'Sent'}
                 {raw !== 0n ? (
                   <b>
                     {' '}
-                    {fromBase(incoming ? raw : -raw, decimals, 6)} {token?.symbol ?? short(tok?.mint ?? '', 3)}
+                    {fromBase(incoming ? raw : -raw, decimals, 6)} {symbol}
                   </b>
                 ) : null}
               </span>
@@ -81,7 +79,7 @@ export function ActivityList({ items, empty = 'No transactions yet.' }: { items:
                 {timeAgo(t.blockTime)}
               </span>
             </span>
-            <ExplorerLink kind="tx" id={t.signature}>
+            <ExplorerLink kind="tx" id={t.hash}>
               <span className="sr-only">View transaction</span>
             </ExplorerLink>
           </li>

@@ -4,28 +4,28 @@ import { AppIcon } from '../components/AppIcon'
 import { RequireWallet } from '../components/gates'
 import { Address, CopyButton, Empty, ExplorerLink, Notice, PageHeader, Panel, Pill, QRCode, Segmented } from '../components/ui'
 import { fromBase, short, timeAgo } from '../lib/format'
-import { payLinkUrl, solanaPayUrl, type PayRequest } from '../lib/paylink'
+import { payLinkUrl, paymentUri, type PayRequest } from '../lib/paylink'
 import { useHoldings } from '../lib/queries'
-import { holdingOf } from '../lib/solana'
+import { holdingOf } from '../lib/chain'
 import { tokenBySymbol } from '../lib/tokens'
 import { linkStatus, receivedTotal, usePayLinks, type PayLink } from '../state/payLinks'
-import { useSolana } from '../state/solana'
+import { useChain } from '../state/chain'
 
 function Detail({ link }: { link: PayLink }) {
-  const { network } = useSolana()
+  const { network } = useChain()
   const [, setLinks] = usePayLinks()
   const [qr, setQr] = useState<'wallet' | 'link'>('wallet')
   const token = tokenBySymbol(network, link.token)
   const holdings = useHoldings(link.address, 20_000)
 
   const request: PayRequest = useMemo(
-    () => ({ v: 1, net: link.net, to: link.address, token: link.token, amount: link.amount, ref: link.ref, note: link.note }),
+    () => ({ v: 1, net: link.net, to: link.address, token: link.token, amount: link.amount, note: link.note }),
     [link],
   )
   if (!token) return <Notice tone="bad">This link uses a token that is not available on this network.</Notice>
 
   const url = payLinkUrl(window.location.origin, request)
-  const spUrl = solanaPayUrl(request, token)
+  const spUrl = paymentUri(request, token)
   const st = linkStatus(link)
   const total = receivedTotal(link)
   const pct = link.amount ? Math.min(100, Number((total * 100n) / BigInt(link.amount))) : st === 'paid' ? 100 : 0
@@ -57,7 +57,7 @@ function Detail({ link }: { link: PayLink }) {
                 ]}
               />
               <p className="muted small-print">
-                {qr === 'wallet' ? 'Scan with a mobile Solana wallet (Solana Pay).' : 'Opens the Sotto payment page.'}
+                {qr === 'wallet' ? 'Scan with a mobile Ethereum wallet (EIP-681).' : 'Opens the Zephyra OS payment page.'}
               </p>
             </div>
             <div className="share__meta">
@@ -88,7 +88,7 @@ function Detail({ link }: { link: PayLink }) {
                   <AppIcon name="external" />
                   Open payment page
                 </a>
-                <CopyButton value={spUrl} label="Copy Solana Pay URL" />
+                <CopyButton value={spUrl} label="Copy wallet URI" />
               </div>
             </div>
           </div>

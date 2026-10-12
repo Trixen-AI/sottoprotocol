@@ -6,9 +6,9 @@ import { Address, Empty, Notice, PageHeader, Panel, Spinner } from '../component
 import { errorText, fromBase, timeAgo, usd } from '../lib/format'
 import { usePrices } from '../lib/prices'
 import { useManyHoldings } from '../lib/queries'
-import { holdingOf } from '../lib/solana'
+import { holdingOf } from '../lib/chain'
 import { valueRows } from '../lib/value'
-import { useSolana } from '../state/solana'
+import { useChain } from '../state/chain'
 import { useVault, type FreshAddress } from '../state/vault'
 
 function LabelEditor({ a }: { a: FreshAddress }) {
@@ -29,7 +29,7 @@ function LabelEditor({ a }: { a: FreshAddress }) {
 }
 
 function AddressTable() {
-  const { tokens } = useSolana()
+  const { tokens } = useChain()
   const vault = useVault()
   const prices = usePrices()
   const all = useManyHoldings(vault.addresses.map((a) => a.address))
@@ -145,7 +145,7 @@ export function Addresses() {
   const { unlocked } = useVault()
   return (
     <div className="page">
-      <PageHeader title="Fresh addresses" text="New Solana addresses derived from your wallet. Payments to them never show your main wallet." />
+      <PageHeader title="Fresh addresses" text="New Ethereum addresses derived from your wallet. Payments to them never show your main wallet." />
       <RequireWallet>
         <div className="cols cols--wide">
           <Panel>
@@ -156,7 +156,7 @@ export function Addresses() {
             <Panel title="Recover on any device" tone="violet">
               <ul className="explain">
                 <li>Every fresh address comes from your wallet's signature of a fixed message, so nothing needs backing up.</li>
-                <li>On a new device, connect the same wallet, unlock and press Recover. Sotto re-derives the addresses and finds the ones with history.</li>
+                <li>On a new device, connect the same wallet, unlock and press Recover. Zephyra OS re-derives the addresses and finds the ones with history.</li>
                 <li>Keys exist only in memory while the vault is unlocked. Locking or closing the tab forgets them.</li>
               </ul>
             </Panel>

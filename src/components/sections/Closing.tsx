@@ -7,7 +7,7 @@ import { closing, footer, socials } from '@/data/content'
 import { SiteLink } from '@/components/ui/SiteLink'
 
 const ITEMS: OrbitItem[] = [
-  { kind: 'token', label: 'SOL' },
+  { kind: 'token', label: 'ETH' },
   { kind: 'lock' },
   { kind: 'token', label: 'USDC' },
   { kind: 'dot' },

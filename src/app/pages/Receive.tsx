@@ -5,18 +5,17 @@ import { RequireWallet } from '../components/gates'
 import { Empty, Field, Notice, PageHeader, Panel, Pill, Segmented, Spinner } from '../components/ui'
 import { TokenSelect } from '../components/walletBits'
 import { fromBase, timeAgo, toBase } from '../lib/format'
-import { newReference } from '../lib/solana'
 import { tokenBySymbol } from '../lib/tokens'
 import { linkStatus, receivedTotal, usePayLinks, type PayLink } from '../state/payLinks'
-import { useSolana } from '../state/solana'
+import { useChain } from '../state/chain'
 import { useVault } from '../state/vault'
 
 function CreateLink() {
   const navigate = useNavigate()
-  const { tokens, network } = useSolana()
+  const { tokens, network } = useChain()
   const vault = useVault()
   const [, setLinks] = usePayLinks()
-  const [symbol, setSymbol] = useState(tokens[1]?.symbol ?? 'SOL')
+  const [symbol, setSymbol] = useState(tokens[1]?.symbol ?? 'ETH')
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [label, setLabel] = useState('')
@@ -38,7 +37,6 @@ function CreateLink() {
         address: fresh.address,
         token: token.symbol,
         amount: raw?.toString(),
-        ref: newReference(),
         note: note.trim() || undefined,
         label: label.trim() || undefined,
         createdAt: Date.now(),
@@ -85,7 +83,7 @@ function CreateLink() {
 type Filter = 'active' | 'paid' | 'archived'
 
 function LinkList() {
-  const { network } = useSolana()
+  const { network } = useChain()
   const [links] = usePayLinks()
   const [filter, setFilter] = useState<Filter>('active')
   const shown = links.filter((l) =>

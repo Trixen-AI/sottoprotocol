@@ -4,7 +4,7 @@ import { explorerUrl } from '../config'
 import { fromBase, short, usd } from '../lib/format'
 import { priceOf, type Prices } from '../lib/prices'
 import type { Token } from '../lib/tokens'
-import { useSolana } from '../state/solana'
+import { useChain } from '../state/chain'
 import { AppIcon, type AppIconName } from './AppIcon'
 
 export function PageHeader({ title, text, children }: { title: string; text?: string; children?: ReactNode }) {
@@ -62,8 +62,8 @@ export function CopyButton({ value, label = 'Copy', compact = false }: { value: 
   )
 }
 
-export function ExplorerLink({ kind, id, children }: { kind: 'tx' | 'account'; id: string; children?: ReactNode }) {
-  const { network } = useSolana()
+export function ExplorerLink({ kind, id, children }: { kind: 'tx' | 'address'; id: string; children?: ReactNode }) {
+  const { network } = useChain()
   return (
     <a className="ext-link" href={explorerUrl(network, kind, id)} target="_blank" rel="noopener noreferrer">
       {children ?? short(id, 6)}
@@ -80,7 +80,7 @@ export function Address({ value, label, chars = 4 }: { value: string; label?: st
         {short(value, chars)}
       </span>
       <CopyButton value={value} label="Copy address" compact />
-      <ExplorerLink kind="account" id={value}>
+      <ExplorerLink kind="address" id={value}>
         <span className="sr-only">View on explorer</span>
       </ExplorerLink>
     </span>

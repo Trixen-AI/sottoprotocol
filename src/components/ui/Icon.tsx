@@ -1,6 +1,6 @@
 import type { IconName } from '@/data/content'
 
-// Sotto's own line icons: 24 grid, 1.5 stroke, round joins.
+// Zephyra OS line icons: 24 grid, 1.5 stroke, round joins.
 const paths: Record<IconName, React.ReactNode> = {
   search: (
     <>

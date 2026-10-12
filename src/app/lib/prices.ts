@@ -1,7 +1,7 @@
 import { useResource } from './useResource'
 import type { Token } from './tokens'
 
-const IDS = ['solana', 'usd-coin', 'zcash']
+const IDS = ['ethereum', 'usd-coin', 'tether', 'zcash']
 const URL = `https://api.coingecko.com/api/v3/simple/price?ids=${IDS.join(',')}&vs_currencies=usd`
 
 export type Prices = Record<string, number>

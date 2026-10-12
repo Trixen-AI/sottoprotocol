@@ -1,4 +1,3 @@
-import './polyfills'
 import '../styles/app.css'
 import { Route, Routes } from 'react-router'
 import { initAppKit } from './appkit'
@@ -16,7 +15,7 @@ import { Receive } from './pages/Receive'
 import { Send } from './pages/Send'
 import { Settings } from './pages/Settings'
 import { Shield } from './pages/Shield'
-import { SolanaProvider } from './state/solana'
+import { ChainProvider } from './state/chain'
 import { VaultProvider } from './state/vault'
 import { WalletProvider } from './state/wallet'
 
@@ -26,7 +25,7 @@ initAppKit()
 export default function AppEntry() {
   return (
     <WalletProvider>
-      <SolanaProvider>
+      <ChainProvider>
         <VaultProvider>
           <RouteMeta />
           <Routes>
@@ -47,7 +46,7 @@ export default function AppEntry() {
             <Route path="*" element={<NotFound />} />
           </Routes>
         </VaultProvider>
-      </SolanaProvider>
+      </ChainProvider>
     </WalletProvider>
   )
 }

@@ -4,7 +4,7 @@ import { Empty } from '../components/ui'
 
 export function NotFound({ inDashboard = false }: { inDashboard?: boolean }) {
   const body = (
-    <Empty icon="close" title="Nothing here" action={<Link className="btn btn--dark" to={inDashboard ? '/app' : '/'}>{inDashboard ? 'Back to overview' : 'Back to Sotto'}</Link>}>
+    <Empty icon="close" title="Nothing here" action={<Link className="btn btn--dark" to={inDashboard ? '/app' : '/'}>{inDashboard ? 'Back to overview' : 'Back to Zephyra OS'}</Link>}>
       This page does not exist.
     </Empty>
   )

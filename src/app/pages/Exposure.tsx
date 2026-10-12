@@ -6,15 +6,15 @@ import { ActivityList } from '../components/walletBits'
 import { dateTime, errorText, fromBase, short, timeAgo, usd } from '../lib/format'
 import { usePrices } from '../lib/prices'
 import { useExposure } from '../lib/queries'
-import { isAddress } from '../lib/solana'
-import { tokenByMint } from '../lib/tokens'
+import { isAddress } from '../lib/chain'
+import { tokenByContract } from '../lib/tokens'
 import { valueRows } from '../lib/value'
-import { useSolana } from '../state/solana'
+import { useChain } from '../state/chain'
 import { useVault } from '../state/vault'
 import { useWallet } from '../state/wallet'
 
 function Report({ address }: { address: string }) {
-  const { tokens, network } = useSolana()
+  const { tokens, network } = useChain()
   const prices = usePrices()
   const { labelOf } = useVault()
   const report = useExposure(address)
@@ -47,7 +47,7 @@ function Report({ address }: { address: string }) {
               </li>
             ) : null}
           </ul>
-          {r.knownTokensOnly ? <p className="stat__foot">Showing SOL, USDC and ZEC. Other tokens are not listed by the current network endpoint.</p> : null}
+          {r.knownTokensOnly ? <p className="stat__foot">Showing ETH, USDC and USDT. The token indexer did not answer, so other tokens are not listed.</p> : null}
         </section>
         <section className="card card--violet stat">
           <div className="stat__head">
@@ -108,7 +108,7 @@ function Report({ address }: { address: string }) {
             {r.flows.length ? (
               <ul className="stat__rows stat__rows--plain">
                 {r.flows.map((f) => {
-                  const sym = f.asset === 'SOL' ? 'SOL' : (tokenByMint(network, f.asset)?.symbol ?? short(f.asset, 3))
+                  const sym = f.asset === 'ETH' ? 'ETH' : (tokenByContract(network, f.asset)?.symbol ?? f.symbol ?? short(f.asset, 3))
                   return (
                     <li key={f.asset}>
                       <span>{sym}</span>
@@ -123,7 +123,7 @@ function Report({ address }: { address: string }) {
               <p className="muted">No value moved in this scan.</p>
             )}
           </Panel>
-          <Panel title="With Sotto" tone="violet">
+          <Panel title="With Zephyra OS" tone="violet">
             <ul className="explain">
               <li>Payments to your pay links land at fresh addresses that never touched this wallet, so they don't appear here.</li>
               <li>Paying from a fresh address leaves this wallet out of the transaction.</li>
@@ -161,7 +161,7 @@ export function Exposure() {
             if (valid) setParams({ address: input.trim() })
           }}
         >
-          <input className="input mono" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Solana address" aria-label="Solana address to scan" />
+          <input className="input mono" value={input} onChange={(e) => setInput(e.target.value)} placeholder="0x… Ethereum address" aria-label="Ethereum address to scan" />
           <button type="submit" className="btn btn--dark" disabled={!valid}>
             Scan
           </button>

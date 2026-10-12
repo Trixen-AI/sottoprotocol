@@ -1,7 +1,7 @@
 import { useCallback, useSyncExternalStore } from 'react'
 
 // Versioned localStorage with a per-key cache, so React gets a stable snapshot and every tab stays in sync.
-const PREFIX = 'sotto:v1:'
+const PREFIX = 'zephyra:v1:'
 const cache = new Map<string, { raw: string | null; value: unknown }>()
 const listeners = new Map<string, Set<() => void>>()
 

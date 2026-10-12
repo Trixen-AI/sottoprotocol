@@ -22,7 +22,7 @@ export function ConnectCard({ title = 'Connect your wallet', children }: { title
       </span>
       <h2 className="gate__title">{title}</h2>
       <p className="gate__text">
-        {children ?? 'Sign in with the Solana wallet you already have. Sotto never holds your keys and cannot move your funds.'}
+        {children ?? 'Sign in with the Ethereum wallet you already have. Zephyra OS never holds your keys and cannot move your funds.'}
       </p>
       {configured ? (
         <button type="button" className="btn btn--dark" onClick={connect}>
@@ -55,7 +55,7 @@ export function UnlockCard({ why }: { why?: string }) {
       <ul className="gate__list">
         <li>Signing a message costs nothing and moves no funds.</li>
         <li>The signature never leaves your browser, and no key is stored.</li>
-        <li>The first time, you sign twice so Sotto can confirm your addresses are recoverable on any device.</li>
+        <li>The first time, you sign twice so Zephyra OS can confirm your addresses are recoverable on any device.</li>
       </ul>
       <button type="button" className="btn btn--dark" onClick={() => void unlock()} disabled={busy}>
         {busy ? <Spinner label="Waiting for your wallet" /> : <AppIcon name="unlock" />}

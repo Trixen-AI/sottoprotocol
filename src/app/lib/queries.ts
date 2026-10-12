@@ -1,30 +1,31 @@
-import { useSolana } from '../state/solana'
+import { useChain } from '../state/chain'
+import { getHistory } from './blockscout'
+import { getHoldings, type Holding } from './chain'
 import { scanExposure } from './exposure'
-import { getHistory, getHoldings, type Holding } from './solana'
 import { useResource } from './useResource'
 
-// Resource keys start with the network so a switch never shows another network's data.
+// Resource keys start with the network so data from different networks never mixes.
 
 export function useHoldings(address: string | null | undefined, refreshMs = 30_000) {
-  const { connection, network, tokens } = useSolana()
-  return useResource(address ? `${network}:holdings:${address}` : null, () => getHoldings(connection, address!, tokens), { refreshMs })
+  const { client, network, tokens } = useChain()
+  return useResource(address ? `${network}:holdings:${address}` : null, () => getHoldings(client, address!, tokens), { refreshMs })
 }
 
 export function useHistory(address: string | null | undefined, limit = 15) {
-  const { connection, network } = useSolana()
-  return useResource(address ? `${network}:history:${address}:${limit}` : null, () => getHistory(connection, address!, limit), {
+  const { network } = useChain()
+  return useResource(address ? `${network}:history:${address}:${limit}` : null, () => getHistory(address!, limit), {
     refreshMs: 60_000,
   })
 }
 
 export function useManyHoldings(addresses: string[]) {
-  const { connection, network, tokens } = useSolana()
+  const { client, network, tokens } = useChain()
   const key = addresses.length ? `${network}:holdings-many:${addresses.join(',')}` : null
   return useResource(
     key,
     async () => {
       const out: Record<string, Holding[]> = {}
-      for (const a of addresses) out[a] = await getHoldings(connection, a, tokens)
+      for (const a of addresses) out[a] = await getHoldings(client, a, tokens)
       return out
     },
     { refreshMs: 45_000 },
@@ -32,6 +33,6 @@ export function useManyHoldings(addresses: string[]) {
 }
 
 export function useExposure(address: string | null) {
-  const { connection, network, tokens } = useSolana()
-  return useResource(address ? `${network}:exposure:${address}` : null, () => scanExposure(connection, address!, tokens, 40))
+  const { client, network, tokens } = useChain()
+  return useResource(address ? `${network}:exposure:${address}` : null, () => scanExposure(client, address!, tokens, 50))
 }

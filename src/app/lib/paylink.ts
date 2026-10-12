@@ -1,7 +1,6 @@
-import { NETWORKS, type NetworkId } from '../config'
+import { NETWORKS, CHAIN_ID, type NetworkId } from '../config'
+import { isAddress } from './chain'
 import { decodeJson, encodeJson } from './codec'
-import { fromBase } from './format'
-import { isAddress } from './solana'
 import { tokenBySymbol, type Token } from './tokens'
 
 /** Everything a payer needs, carried in the link itself: no server holds it. */
@@ -13,14 +12,8 @@ export type PayRequest = {
   token: string
   /** base units, omitted when the payer chooses the amount */
   amount?: string
-  /** Solana Pay reference key */
-  ref: string
   /** note shown to the payer (public: it travels in the link) */
   note?: string
-}
-
-export function encodePayRequest(r: PayRequest) {
-  return encodeJson(r)
 }
 
 export function decodePayRequest(code: string): { request: PayRequest; token: Token } {
@@ -30,21 +23,19 @@ export function decodePayRequest(code: string): { request: PayRequest; token: To
   } catch {
     throw new Error('This pay link is incomplete or damaged.')
   }
-  if (r?.v !== 1 || !NETWORKS.includes(r.net) || !isAddress(r.to) || !isAddress(r.ref)) {
-    throw new Error('This pay link is not valid.')
-  }
+  if (r?.v !== 1 || !NETWORKS.includes(r.net) || !isAddress(r.to)) throw new Error('This pay link is not valid.')
   const token = tokenBySymbol(r.net, r.token)
-  if (!token) throw new Error(`This pay link asks for ${r.token}, which is not supported on this network.`)
+  if (!token) throw new Error(`This pay link asks for ${r.token}, which is not supported.`)
   if (r.amount !== undefined && !/^\d+$/.test(r.amount)) throw new Error('This pay link has an invalid amount.')
   if (r.note) r.note = r.note.slice(0, 120)
   return { request: r, token }
 }
 
 export function payLinkUrl(origin: string, r: PayRequest) {
-  return `${origin}/pay/${encodePayRequest(r)}`
+  return `${origin}/pay/${encodeJson(r)}`
 }
 
-/** Extracts a pay request from a full Sotto link or a bare code. Returns null if it is not one. */
+/** Extracts a pay request from a full Zephyra OS link or a bare code. Returns null if it is not one. */
 export function parsePayLink(input: string) {
   const s = input.trim()
   const m = s.match(/\/pay\/([A-Za-z0-9_-]+)/)
@@ -57,14 +48,8 @@ export function parsePayLink(input: string) {
   }
 }
 
-/** Solana Pay transfer request URL, readable by mobile wallets that scan QR codes. */
-export function solanaPayUrl(r: PayRequest, token: Token) {
-  const q = new URLSearchParams()
-  if (r.amount) q.set('amount', fromBase(BigInt(r.amount), token.decimals).replace(/,/g, ''))
-  if (token.mint) q.set('spl-token', token.mint)
-  q.set('reference', r.ref)
-  q.set('label', 'Sotto')
-  if (r.note) q.set('message', r.note)
-  return `solana:${r.to}?${q.toString()}`
+/** EIP-681 payment URI, readable by mobile Ethereum wallets that scan QR codes. */
+export function paymentUri(r: PayRequest, token: Token) {
+  if (!token.contract) return `ethereum:${r.to}@${CHAIN_ID}${r.amount ? `?value=${r.amount}` : ''}`
+  return `ethereum:${token.contract}@${CHAIN_ID}/transfer?address=${r.to}${r.amount ? `&uint256=${r.amount}` : ''}`
 }
-

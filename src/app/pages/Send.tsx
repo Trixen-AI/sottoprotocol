@@ -7,25 +7,22 @@ import { TokenSelect } from '../components/walletBits'
 import { errorText, fromBase, short, toBase } from '../lib/format'
 import { parsePayLink } from '../lib/paylink'
 import { useHoldings } from '../lib/queries'
-import { BASE_FEE, buildTransfer, checkSolTransfer, confirmSignature, holdingOf, isAddress, sendWithKeypair } from '../lib/solana'
+import { buildTransfer, gasCost, holdingOf, isAddress, maxEthSend, sameAddress, sendFromAccount, waitForTx } from '../lib/chain'
 import { tokenBySymbol } from '../lib/tokens'
 import { invalidate } from '../lib/useResource'
-import { useSolana } from '../state/solana'
+import { useChain } from '../state/chain'
 import { useVault } from '../state/vault'
 import { useWallet } from '../state/wallet'
 
-/** Rough rent for opening a recipient's token account, which the sender pays when it is missing. */
-const ATA_RENT = 2_039_280n
-
 function SendForm({ owner }: { owner: string }) {
   const [params] = useSearchParams()
-  const { connection, network, tokens } = useSolana()
+  const { client, rpcUrl, network, tokens } = useChain()
   const { sendTransaction } = useWallet()
   const vault = useVault()
   const fromParam = params.get('from')
   const [source, setSource] = useState<'main' | 'fresh'>(fromParam !== null && fromParam !== 'main' ? 'fresh' : 'main')
   const [freshIndex, setFreshIndex] = useState<number>(fromParam && fromParam !== 'main' ? Number(fromParam) : (vault.addresses[0]?.index ?? 0))
-  const [symbol, setSymbol] = useState(params.get('asset') ?? 'SOL')
+  const [symbol, setSymbol] = useState(params.get('asset') ?? 'ETH')
   const [to, setTo] = useState(params.get('to') ?? '')
   const [amount, setAmount] = useState('')
   const [busy, setBusy] = useState(false)
@@ -43,19 +40,19 @@ function SendForm({ owner }: { owner: string }) {
 
   const holdings = useHoldings(fromAddress)
   const balance = holdingOf(holdings.data, token)
-  const solBalance = holdingOf(holdings.data, tokens[0])
+  const ethBalance = holdingOf(holdings.data, tokens[0])
 
-  const ownFresh = vault.addresses.find((a) => a.address === recipient)
+  const ownFresh = vault.addresses.find((a) => sameAddress(a.address, recipient))
   const linkWarning =
     source === 'main' && ownFresh
       ? `This sends from your main wallet to your own fresh address #${ownFresh.index}, which links the two on-chain.`
-      : source === 'fresh' && recipient === owner
+      : source === 'fresh' && sameAddress(recipient, owner)
         ? 'This moves funds from a fresh address into your main wallet, which links the two on-chain. The Shield or a new fresh address keeps them apart.'
         : null
 
-  const setMax = () => {
+  const setMax = async () => {
     if (!holdings.data) return
-    const max = token.mint ? balance : balance > BASE_FEE ? balance - BASE_FEE : 0n
+    const max = token.contract ? balance : await maxEthSend(client, balance)
     setAmount(fromBase(max, token.decimals).replace(/,/g, ''))
   }
 
@@ -66,32 +63,29 @@ function SendForm({ owner }: { owner: string }) {
     try {
       if (link && link.request.net !== network) throw new Error(`This pay link is for ${link.request.net}. Switch network first.`)
       if (!fromAddress) throw new Error('Choose a fresh address to send from.')
-      if (!isAddress(recipient)) throw new Error('Enter a valid Solana address or a Sotto pay link.')
-      if (recipient === fromAddress) throw new Error('The recipient is the same as the sender.')
+      if (!isAddress(recipient)) throw new Error('Enter a valid Ethereum address or a Zephyra OS pay link.')
+      if (sameAddress(recipient, fromAddress)) throw new Error('The recipient is the same as the sender.')
       const raw = fixedAmount ? BigInt(fixedAmount) : toBase(amount, token.decimals)
       if (raw <= 0n) throw new Error('Enter an amount above zero.')
       if (!holdings.data) throw new Error('Balances are still loading.')
-      if (token.mint) {
-        if (raw > balance) throw new Error(`Not enough ${token.symbol} at this address.`)
-        if (solBalance < BASE_FEE + ATA_RENT) {
-          throw new Error(
-            source === 'fresh'
-              ? `This fresh address needs about 0.0021 SOL to pay network fees. It has ${fromBase(solBalance, 9, 6)} SOL.`
-              : 'Your wallet needs about 0.0021 SOL to cover network fees for a token transfer.',
-          )
+      if (raw > balance) throw new Error(`Not enough ${token.symbol} at this address.`)
+      const req = buildTransfer(token, recipient, raw)
+      if (source === 'fresh') {
+        // a fresh address pays its own gas in ETH
+        const gas = await gasCost(client, fromAddress, req)
+        if (ethBalance < gas + (token.contract ? 0n : raw)) {
+          throw new Error(`This fresh address needs about ${fromBase(gas, 18, 6)} ETH for gas on top of the amount. It has ${fromBase(ethBalance, 18, 6)} ETH.`)
         }
-      } else {
-        await checkSolTransfer(connection, fromAddress, recipient, raw, balance)
       }
       setBusy(true)
-      const tx = await buildTransfer(connection, { from: fromAddress, to: recipient, token, amount: raw, reference: linkForThisNet?.request.ref })
       let sig: string
       if (source === 'main') {
-        sig = await sendTransaction(tx, connection)
-        await confirmSignature(connection, sig)
+        const hash = await sendTransaction(req)
+        await waitForTx(client, hash)
+        sig = hash
       } else {
         if (!vault.unlocked) throw new Error('Unlock your vault first.')
-        sig = await sendWithKeypair(connection, tx, vault.keypair(freshIndex))
+        sig = await sendFromAccount(rpcUrl, client, vault.account(freshIndex), req)
       }
       setDone({ sig, text: `Sent ${fromBase(raw, token.decimals)} ${token.symbol} to ${short(recipient)}` })
       setAmount('')
@@ -134,10 +128,10 @@ function SendForm({ owner }: { owner: string }) {
           <Field
             label="To"
             htmlFor="send-to"
-            hint={linkForThisNet ? `Paying a Sotto link${linkForThisNet.request.note ? `: ${linkForThisNet.request.note}` : ''}` : 'A Solana address or a Sotto pay link.'}
+            hint={linkForThisNet ? `Paying a Zephyra OS link${linkForThisNet.request.note ? `: ${linkForThisNet.request.note}` : ''}` : 'An Ethereum address or a Zephyra OS pay link.'}
             error={link && link.request.net !== network ? `This pay link is for ${link.request.net}.` : null}
           >
-            <input id="send-to" className="input mono" placeholder="Address or pay link" value={to} onChange={(e) => setTo(e.target.value)} autoComplete="off" />
+            <input id="send-to" className="input mono" placeholder="0x… address or pay link" value={to} onChange={(e) => setTo(e.target.value)} autoComplete="off" />
           </Field>
           <div className="form__row">
             <Field label="Asset" htmlFor="send-asset">
@@ -182,7 +176,7 @@ function SendForm({ owner }: { owner: string }) {
             {busy ? (source === 'main' ? 'Confirm in your wallet' : 'Sending') : 'Send'}
           </button>
           <p className="muted small-print">
-            Network fee about 0.000005 SOL. A token transfer to someone without that token may add about 0.002 SOL to open their account.
+            Gas is paid in ETH. Sending from a fresh address needs a little ETH at that address for gas.
           </p>
         </form>
       </Panel>

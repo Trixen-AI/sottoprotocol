@@ -2,29 +2,29 @@ import { useEffect, useState } from 'react'
 import { explorerUrl, NETWORK_LABEL } from '../config'
 import { dateTime, errorText, fromBase, short } from '../lib/format'
 import { verifyProof, type Check, type Proof } from '../lib/proof'
-import { tokenByMint } from '../lib/tokens'
-import { useSolana } from '../state/solana'
+import { tokenByContract } from '../lib/tokens'
+import { useChain } from '../state/chain'
 import { AppIcon } from './AppIcon'
 import { Notice, Pill, Spinner } from './ui'
 
 /** Verifies a proof against the chain and shows each check. */
 export function ProofResult({ proof }: { proof: Proof }) {
-  const { connectionFor } = useSolana()
+  const { clientFor } = useChain()
   const [checks, setChecks] = useState<Check[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const b = proof.body
-  const token = b.asset === 'SOL' ? tokenByMint(b.net, null) : tokenByMint(b.net, b.asset)
-  const decimals = token?.decimals ?? (b.asset === 'SOL' ? 9 : 0)
+  const token = tokenByContract(b.net, b.asset === 'ETH' ? null : b.asset)
+  const decimals = token?.decimals ?? 18
 
   useEffect(() => {
     let alive = true
-    verifyProof(connectionFor(b.net), proof)
+    verifyProof(clientFor(b.net), proof)
       .then((c) => alive && setChecks(c))
       .catch((e) => alive && setError(errorText(e)))
     return () => {
       alive = false
     }
-  }, [proof, b.net, connectionFor])
+  }, [proof, b.net, clientFor])
 
   const allOk = checks?.every((c) => c.ok)
 
