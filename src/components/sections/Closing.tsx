@@ -46,7 +46,7 @@ export function Closing() {
           stageClass="orbit--closing"
           center={
             <div className="seal" aria-hidden="true">
-              <Mark size={84} />
+              <Mark size={84} core="rgba(255, 255, 255, 0.92)" />
             </div>
           }
         />

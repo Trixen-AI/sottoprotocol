@@ -5,16 +5,16 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Resvg } from '@resvg/resvg-js'
+import { markSvg } from './build-logo.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const paths = readFileSync(join(root, 'src/components/brand/logoPaths.ts'), 'utf8')
 const read = (name) => JSON.parse(paths.match(new RegExp(`${name} = (".*")`))[1])
-const MARK = read('MARK_PATH')
 const WORD = read('WORD_PATH')
 const LOGO_W = Number(paths.match(/LOGO_WIDTH = (\d+)/)[1])
-const MARK_STROKE = Number(paths.match(/MARK_STROKE = ([\d.]+)/)[1])
-const mark = (color, opacity = 1) =>
-  `<path d="${MARK}" fill="none" stroke="${color}" stroke-opacity="${opacity}" stroke-width="${MARK_STROKE}" stroke-linecap="round" stroke-linejoin="round"/>`
+let ids = 0
+/** The mark, with a fresh mask id each time it is placed. */
+const mark = (disc, core) => markSvg(`m${ids++}`, disc, core)
 
 const INK = '#14121C'
 const WASH = '#F6F4FF'
@@ -53,7 +53,7 @@ const og = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" vi
   <ellipse cx="930" cy="330" rx="250" ry="78" fill="none" stroke="#A08CEB" stroke-opacity="0.55" stroke-width="2" stroke-dasharray="3 12" transform="rotate(-8 930 330)"/>
   <circle cx="930" cy="320" r="140" fill="url(#seal)"/>
   <circle cx="930" cy="320" r="140" fill="url(#shine)"/>
-  <g transform="translate(860 250) scale(4.375)">${mark('#FFFFFF', 0.75)}</g>
+  <g transform="translate(860 250) scale(4.375)">${mark('#FFFFFF', '#FFFFFF').replace('fill="#FFFFFF" mask', 'fill="#FFFFFF" fill-opacity="0.8" mask')}</g>
   <g transform="translate(80 72) scale(1.6)">
     ${mark(INK)}<path fill="${INK}" d="${WORD}"/>
   </g>
